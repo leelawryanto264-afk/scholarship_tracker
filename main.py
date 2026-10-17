@@ -52,10 +52,18 @@ def extract_details(text, subject):
     essay_match = re.search(r"(?:Essay Prompt|Essay Requirement|Essay):/s*(.*?)(?:\n|$)", text, re.IGNORECASE)
     if essay_match:
         essay = essay_match.group(1).strip()
+    else:
+        essay_context = re.search(r"(:essay)(?:.*?)\s+(.*)", text, re.IGNORECASE)
+        if essay_context:
+            essay = f"{essay_context.group(1).strip()}"
 
     req_match = re.search(r"(?:Requirements|Eligibility|Criteria):/s*(.*?)(?:\n|$)", text, re.IGNORECASE)
     if req_match:
         requirements = req_match.group(1).strip()
+    else:
+        req_context = re.search(r"(?:eligibility|eligible|requirements|require)(?:,*?)\s+(.*)", text, re.IGNORECASE)
+        if req_context:
+            requirements = f"{req_context.group(1).strip()}"
 
     return name, amount, essay, requirements
 
@@ -74,6 +82,7 @@ if os.path.exists("scholarship.xlsx"):
 # Connects to the IMAP server over SSL and fetches the last 100 emails containing the keyword "scholarship"
 mail = imaplib.IMAP4_SSL(IMAP_SERVER)
 email_data = []
+new_count = 0
 
 try:
     print("Logging in...")
@@ -86,9 +95,9 @@ try:
         raise RuntimeError(f"Unable to search inbox: {status}")
 
     email_ids = messages[0].split() if messages and messages[0] else []
-    last_100_emails = email_ids[-100:]
+    last_500_emails = email_ids[-500:]
 
-    for e_id in last_100_emails:
+    for e_id in last_500_emails:
         status, msg_data = mail.fetch(e_id, "(RFC822)")
         if status != "OK":
             continue
@@ -107,19 +116,19 @@ try:
         if email_key in existing_scholarships:
             continue
 
-
+        body_text = get_email(msg)
         s_name, s_amount, s_essay, s_reqs = extract_details(body_text, subject)
-
-        email_data.append({
-            "Date": msg.get("Date"),
-            "Sender": msg.get("From"),
-            "Scholarship Name": msg.get("Subject"),
-            "Name": s_name,
+        existing_scholarships[email_key] = {
+            "Date": msg_date,
+            "Sender": msg_sender,
+            "Scholarship": subject,
             "Amount": s_amount,
             "Essay": s_essay,
-            "Requirements": s_reqs,
+            "Requirements": s_reqs, 
             "Status": "Not Applied"
-        })
+        }
+        new_count += 1
+
 finally:
     try:
         mail.logout()
@@ -132,14 +141,16 @@ if email_data:
     try: 
         df = pd.DataFrame(email_data)
         df.to_excel("scholarship_tracker.xlsx", index=False)
+
         wb = openpyxl.load_workbook("scholarship_tracker.xlsx")
         ws = wb.active
-        dv = DataValidation(type = "list", formula1='"Not Applied, Applied, Rejected, Accepted"', allow_blank=True)
+        dv = DataValidation(type = "list", formula1='"Not Applied, Applied, In Review, Rejected, Accepted"', allow_blank=True)
         ws.add_data_validation(dv)
         dv.add("G2:G500")
+        
         wb.save("scholarship_tracker.xlsx")
-        print("Excel spreadsheet 'scholarship_tracker.xlsx' created/updated successfully.")
-    except:
-        print("Error in creating spreadsheet.")
+        print(f"Excel spreadsheet 'scholarship_tracker.xlsx' updated {new_count} entries successfully.")
+    except PermissionError:
+        print(f"Error: Close your Excel file if you have it open and run it again.")
 else:
     print("No emails found or no data was retrieved.")
