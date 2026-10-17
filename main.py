@@ -3,6 +3,8 @@ import imaplib
 import email
 import re
 import pandas as pd
+import openpyxl
+from openpyxl.worksheet.datavalidation import DataValidation
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
@@ -57,6 +59,18 @@ def extract_details(text, subject):
 
     return name, amount, essay, requirements
 
+# Checks for repeating email and removes duplicates
+existing_scholarships = {}
+if os.path.exists("scholarship.xlsx"):
+    try:
+        existing_df = pd.read_excel(str(row.get("Date"))), str(row.get("Sender")), str(row.get("Scholarship_name"))
+        for _, row in existing_df.iterrows():
+            unique_key = str(row.get("Date")), str(row.get("Sender")), str(row.get("Scholarship_name"))
+            existing_scholarships[unique_key] = dict(row)
+        print(f"Loaded {len(existing_scholarships)} existing ")
+    except:
+        print(f"Counld not read existing file")
+
 # Connects to the IMAP server over SSL and fetches the last 100 emails containing the keyword "scholarship"
 mail = imaplib.IMAP4_SSL(IMAP_SERVER)
 email_data = []
@@ -67,7 +81,7 @@ try:
     mail.select("inbox")
 
     print("Fetching emails...")
-    status, messages = mail.search(None, "(BODY \"scholarship\")")
+    status, messages = mail.search(None, '(TEXT "scholarship")')
     if status != "OK":
         raise RuntimeError(f"Unable to search inbox: {status}")
 
@@ -85,17 +99,27 @@ try:
                 subject = msg.get("Subject", "No Subject")
                 body_text = get_email(msg)
 
-                s_name, s_amount, s_essay, s_reqs = extract_details(body_text, subject)
+        msg_date = msg.get("Date")    
+        msg_sender = msg.get("From")  
+        msg_subject = msg.get("Subject") 
+        email_key = (str(msg_date), str(msg_sender), str(msg_subject)) 
 
-                email_data.append({
-                    "Date": msg.get("Date"),
-                    "Sender": msg.get("From"),
-                    "Scholarship Name": msg.get("Subject"),
-                    "Name": s_name,
-                    "Amount": s_amount,
-                    "Essay": s_essay,
-                    "Requirements": s_reqs
-                })
+        if email_key in existing_scholarships:
+            continue
+
+
+        s_name, s_amount, s_essay, s_reqs = extract_details(body_text, subject)
+
+        email_data.append({
+            "Date": msg.get("Date"),
+            "Sender": msg.get("From"),
+            "Scholarship Name": msg.get("Subject"),
+            "Name": s_name,
+            "Amount": s_amount,
+            "Essay": s_essay,
+            "Requirements": s_reqs,
+            "Status": "Not Applied"
+        })
 finally:
     try:
         mail.logout()
@@ -108,7 +132,13 @@ if email_data:
     try: 
         df = pd.DataFrame(email_data)
         df.to_excel("scholarship_tracker.xlsx", index=False)
-        print("Excel spreadsheet 'scholarship_tracker.xlsx' created successfully.")
+        wb = openpyxl.load_workbook("scholarship_tracker.xlsx")
+        ws = wb.active
+        dv = DataValidation(type = "list", formula1='"Not Applied, Applied, Rejected, Accepted"', allow_blank=True)
+        ws.add_data_validation(dv)
+        dv.add("G2:G500")
+        wb.save("scholarship_tracker.xlsx")
+        print("Excel spreadsheet 'scholarship_tracker.xlsx' created/updated successfully.")
     except:
         print("Error in creating spreadsheet.")
 else:
