@@ -4,7 +4,7 @@ import email
 import re
 import pandas as pd
 import openpyxl
-from openpyxl.worksheet.datavalidation import DataValidation
+from openpyxl.styles import PatternFill, Font
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
@@ -46,56 +46,37 @@ def extract_details(text, subject):
     amount_match = re.search(r"\$\s?([\d,]+(?:\.\d{2})?)", text)
     amount = amount_match.group(0) if amount_match else "Not specified"
 
-    essay = "Not Found"
-    requirements = "Not Found"
-
-    essay_match = re.search(r"(?:Essay Prompt|Essay Requirement|Essay):/s*(.*?)(?:\n|$)", text, re.IGNORECASE)
-    if essay_match:
-        essay = essay_match.group(1).strip()
-    else:
-        essay_context = re.search(r"(:essay)(?:.*?)\s+(.*)", text, re.IGNORECASE)
-        if essay_context:
-            essay = f"{essay_context.group(1).strip()}"
-
-    req_match = re.search(r"(?:Requirements|Eligibility|Criteria):/s*(.*?)(?:\n|$)", text, re.IGNORECASE)
-    if req_match:
-        requirements = req_match.group(1).strip()
-    else:
-        req_context = re.search(r"(?:eligibility|eligible|requirements|require)(?:,*?)\s+(.*)", text, re.IGNORECASE)
-        if req_context:
-            requirements = f"{req_context.group(1).strip()}"
-
-    return name, amount, essay, requirements
+    return name, amount
 
 # Checks for repeating email and removes duplicates
 existing_scholarships = {}
 if os.path.exists("scholarship.xlsx"):
     try:
-        existing_df = pd.read_excel(str(row.get("Date"))), str(row.get("Sender")), str(row.get("Scholarship_name"))
+        existing_df = pd.read_excel("scholarship_tracker.xlsx")
         for _, row in existing_df.iterrows():
             unique_key = str(row.get("Date")), str(row.get("Sender")), str(row.get("Scholarship_name"))
             existing_scholarships[unique_key] = dict(row)
-        print(f"Loaded {len(existing_scholarships)} existing ")
+        print(f"Loaded {len(existing_scholarships)} existing entries.")
     except:
         print(f"Counld not read existing file")
 
 # Connects to the IMAP server over SSL and fetches the last 100 emails containing the keyword "scholarship"
 mail = imaplib.IMAP4_SSL(IMAP_SERVER)
-email_data = []
 new_count = 0
 
 try:
     print("Logging in...")
     mail.login(EMAIL, PASSWORD)
-    mail.select("inbox")
+    mail.select('"[Gmail]/All Mail"')
 
     print("Fetching emails...")
-    status, messages = mail.search(None, '(TEXT "scholarship")')
+    status, messages = mail.search(None, '(OR (TEXT "scholarship") (SUBJECT "scholarship"))')
     if status != "OK":
         raise RuntimeError(f"Unable to search inbox: {status}")
 
     email_ids = messages[0].split() if messages and messages[0] else []
-    last_500_emails = email_ids[-500:]
+    email_ids.reverse()
+    last_500_emails = email_ids[: 500]
 
     for e_id in last_500_emails:
         status, msg_data = mail.fetch(e_id, "(RFC822)")
@@ -107,24 +88,24 @@ try:
                 msg = email.message_from_bytes(response_part[1])
                 subject = msg.get("Subject", "No Subject")
                 body_text = get_email(msg)
-
-        msg_date = msg.get("Date")    
-        msg_sender = msg.get("From")  
-        msg_subject = msg.get("Subject") 
-        email_key = (str(msg_date), str(msg_sender), str(msg_subject)) 
-
+                msg_date = msg.get("Date")    
+                msg_sender = msg.get("From")  
+                msg_subject = msg.get("Subject") 
+                if "no-reply@google.com" in msg_sender.lower() or "security alert" in subject.lower():
+                    continue
+                email_key = (str(msg_date), str(msg_sender), str(msg_subject)) 
+ 
+        # removes duplicates via key created for each email
         if email_key in existing_scholarships:
             continue
 
         body_text = get_email(msg)
-        s_name, s_amount, s_essay, s_reqs = extract_details(body_text, subject)
+        s_name, s_amount = extract_details(body_text, subject)
         existing_scholarships[email_key] = {
             "Date": msg_date,
             "Sender": msg_sender,
             "Scholarship": subject,
             "Amount": s_amount,
-            "Essay": s_essay,
-            "Requirements": s_reqs, 
             "Status": "Not Applied"
         }
         new_count += 1
@@ -137,18 +118,35 @@ finally:
         pass
 
 # Exports data 
-if email_data:
-    try: 
+if existing_scholarships:
+    try:
+        email_data = list(existing_scholarships.values()) 
         df = pd.DataFrame(email_data)
         df.to_excel("scholarship_tracker.xlsx", index=False)
 
-        wb = openpyxl.load_workbook("scholarship_tracker.xlsx")
-        ws = wb.active
-        dv = DataValidation(type = "list", formula1='"Not Applied, Applied, In Review, Rejected, Accepted"', allow_blank=True)
-        ws.add_data_validation(dv)
-        dv.add("G2:G500")
-        
-        wb.save("scholarship_tracker.xlsx")
+        total_tracked = len(df)
+
+        status_count = df["Status"].value_counts()
+        not_applied_count = status_count.get("Not Applied", 0)
+        applied_count = status_count.get("Applied", 0)
+        review_count = status_count.get("In Review", 0)
+
+        total_value = 0
+        for amount in df["Amount"]:
+            if amount != "Not Specified":
+                clear_amount = re.sub(r"[^\d.]", "", str(amount))
+                if clear_amount:
+                    total_value += float(clear_amount)
+        print("\n"+ "=" * 50)
+        print("Scholarship Tracker Status Report")
+        print("="*50)
+        print("System Status                    : ACTIVE")
+        print(f"Total Email Recorded            : {total_tracked}")
+        print(f"Potential Scholarship Awards    : ${total_value:,.2f}")
+        print(f"Not Applied:                    : {not_applied_count}")
+        print(f"Applied:                        : {applied_count}")
+        print(f"In Review:                      : {review_count}")
+        print("=" * 50+ "\n")
         print(f"Excel spreadsheet 'scholarship_tracker.xlsx' updated {new_count} entries successfully.")
     except PermissionError:
         print(f"Error: Close your Excel file if you have it open and run it again.")
