@@ -1,16 +1,15 @@
 import os
 import re
 import json
+import time
 import imaplib
 import email
 import pandas as pd
 from dotenv import load_dotenv
-import gspread
-from google.oauth2.service_account import Credentials
+from format import format_sheet
 from parser import get_email, extract_details
-from cloud_sync import upload_row, sheet_url, credentials_file
+from cloud_sync import upload_row, sheet_url, connect_cloud
 
-#add a time delay, alomst done :'D
 
 # Loads environment and retrieve configuration settings
 load_dotenv()
@@ -18,22 +17,14 @@ EMAIL = os.getenv("EMAIL")
 PASSWORD = os.getenv("PASSWORD")
 IMAP_SERVER = os.getenv("IMAP_SERVER", "imap.gmail.com")
 
-
 # Raises an error if email or password is missing from .env file
 if not EMAIL or not PASSWORD:
     raise ValueError("EMAIL and PASSWORD must be set in the .env file.")
 
-scope = ['https://www.googleapis.com/auth/spreadsheets', 'https://www.googleapis.com/auth/drive']
-with open(credentials_file, 'r') as f:
-    creds_data = json.load(f)
-if "private_key" in creds_data:
-    creds_data["private_key"] = creds_data["private_key"].replace("\\n", "\n")
-
-creds = Credentials.from_service_account_info(creds_data, scopes=scope)
-client = gspread.authorize(creds)
-
-wb = client.open_by_url(sheet_url)
-sheet = wb.sheet1
+sheet = connect_cloud(sheet_url)
+if sheet is None:
+    print("sheet is none")
+    
 
 existing_scholarships = {}
 
@@ -63,8 +54,6 @@ try:
         email_ids = []
     
     last_500_emails = email_ids[:500]
-    print(f"DEBUG: Found {len(email_ids)} emails")
-    print(f"DEBUG: Spreadsheet URL is {sheet_url}")
 
     for e_id in last_500_emails:
         status, msg_data = mail.fetch(e_id, "(RFC822)")
@@ -96,11 +85,12 @@ try:
                     "Amount": str(s_amount),
                     "Status": "Not Applied"
                 }
-                print(f"DEBUG3: Extracted payload details cleanly > {payload['Scholarship Name']} & {payload['Amount']}")
-                print(f"DEBUG3: payload to sheet is {sheet} ")
+
                 upload_row(sheet, payload)
+                format_sheet(sheet)
                 existing_scholarships[email_key] = payload
                 new_count += 1
+                time.sleep(1.5)
 
 finally:
     try:
@@ -118,7 +108,8 @@ if existing_scholarships:
     status_count = df["Status"].value_counts()
     not_applied_count = status_count.get("Not Applied", 0)
     applied_count = status_count.get("Applied", 0)
-    review_count = status_count.get("In Review", 0)
+    rejected_count = status_count.get("Rejected", 0)
+    accepted_count = status_count.get("Accepted", 0)
 
     total_value = 0
     if "Amount" in df.columns:
@@ -136,7 +127,8 @@ if existing_scholarships:
     print(f"Potential Scholarship Awards    : ${total_value:,.2f}")
     print(f"Not Applied:                    : {not_applied_count}")
     print(f"Applied:                        : {applied_count}")
-    print(f"In Review:                      : {review_count}")
+    print(f"Rejected:                       : {rejected_count}")
+    print(f"Accepted:                       : {accepted_count}")
     print("=" * 50+ "\n")
 
 else:
