@@ -30,6 +30,6 @@ def extract_details(text, subject):
     name = subject.strip() if subject else "Unknown Scholarship"
     name = re.sub(r"^\x20-\x7E", "", name)
     clean_text = " ".join(text.split())
-    amount_match = re.search(r"\$\s?([\d,]+(?:\.\d{2})?)", clean_text)
+    amount_match = re.search(r"\$\s?([\d,]+(?:\.\d{2})?)", subject)
     amount = amount_match.group(0) if amount_match else "Not specified"
     return name, amount

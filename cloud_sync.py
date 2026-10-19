@@ -15,20 +15,16 @@ def connect_cloud(sheet_url=sheet_url):
 	else:
 		try:
 			scope = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-			print("reading json file")
 			with open(credentials_file, "r") as f:
 				creds_data = json.load(f)
 
 			if "private_key" in creds_data:
 				creds_data["private_key"] = creds_data["private_key"].replace("\\n", "\n")
 
-			print("auth and connecting w google apis")
 			creds = Credentials.from_service_account_info(creds_data, scopes=scope)
 			client = gspread.authorize(creds)
 
-			print("trying to open sheet")
 			wb = client.open_by_url(sheet_url)
-			print("it works yip yip horay")
 			return wb.sheet1
 		except Exception as e:
 			print(e)
@@ -36,7 +32,6 @@ def connect_cloud(sheet_url=sheet_url):
 
 def upload_row(sheet, payload):
 	if sheet is None:
-		print("sheet is none (cliud)")
 		return
 	try:
 		sheet.append_row([
@@ -46,7 +41,7 @@ def upload_row(sheet, payload):
 			payload["Amount"],
 			payload["Status"]
 		])
-		print("yippie")
+		print("...")
 	except Exception as e:
 			print(e)
 

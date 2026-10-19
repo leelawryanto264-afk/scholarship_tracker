@@ -1,10 +1,11 @@
 import os
 import re
-import json
 import time
 import imaplib
 import email
+import email.utils
 import pandas as pd
+from datetime import datetime
 from dotenv import load_dotenv
 from format import format_sheet
 from parser import get_email, extract_details
@@ -53,9 +54,9 @@ try:
     else: 
         email_ids = []
     
-    last_500_emails = email_ids[:500]
+    last_100_emails = email_ids[:100]
 
-    for e_id in last_500_emails:
+    for e_id in last_100_emails:
         status, msg_data = mail.fetch(e_id, "(RFC822)")
         if status != "OK":
             continue
@@ -65,17 +66,23 @@ try:
                 msg = email.message_from_bytes(response_part[1])
                 subject = msg.get("Subject", "No Subject")
                 body_text = get_email(msg)
-                msg_date = msg.get("Date")    
+                raw_date = msg.get("Date")  
+                try:
+                    parsed_date = email.utils.parsedate_to_datetime(raw_date)
+                    msg_date = parsed_date.strftime("%m/%d/%Y %H:%M")
+                except Exception as e:
+                    print(e)
                 msg_sender = msg.get("From")  
                 msg_subject = msg.get("Subject") 
-                if "no-reply@google.com" in msg_sender.lower() or "security alert" in subject.lower():
+
+                if "no-reply@google.com" in msg_sender.lower() or "security alert" in subject.lower() or "linkedin" in msg_sender.lower():
                     continue
-                email_key = (str(msg_date), str(msg_sender), str(msg_subject)) 
- 
+                if "scholarship" not in subject.lower():
+                    continue
                 # removes duplicates via key created for each email
+                email_key = (str(msg_date), str(msg_sender), str(msg_subject)) 
                 if email_key in existing_scholarships:
                     continue
-
                 s_name, s_amount = extract_details(body_text, subject)
 
                 payload = {
@@ -87,49 +94,55 @@ try:
                 }
 
                 upload_row(sheet, payload)
-                format_sheet(sheet)
                 existing_scholarships[email_key] = payload
                 new_count += 1
-                time.sleep(1.5)
+                time.sleep(2)
 
 finally:
     try:
         mail.logout()
-        print("Connnection with Gmail closed...")
+        print("Connection with Gmail closed...")
     except:
         pass
 
-# Exports data 
-if existing_scholarships:
-    df = pd.DataFrame(list(existing_scholarships.values()) )
+try:
+    all_records = sheet.get_all_records()
+    if all_records:
+        df = pd.DataFrame(all_records)
+        total_tracked = len(df)
 
-    total_tracked = len(df)
+        status_count = df["Status"].value_counts() if "Status" in df.columns else pd.Series()
+        not_applied_count = status_count.get("Not Applied", 0)
+        applied_count = status_count.get("Applied", 0)
+        rejected_count = status_count.get("Rejected", 0)
+        accepted_count = status_count.get("Accepted", 0)
 
-    status_count = df["Status"].value_counts()
-    not_applied_count = status_count.get("Not Applied", 0)
-    applied_count = status_count.get("Applied", 0)
-    rejected_count = status_count.get("Rejected", 0)
-    accepted_count = status_count.get("Accepted", 0)
+        total_value = 0.0
+        if "Amount" in df.columns:
+            for amount in df["Amount"]:
+                if amount and str(amount) != "Not Specified":
+                    clear_amount = re.sub(r"[^\d.]", "", str(amount))
+                    if clear_amount:
+                        try:
+                            total_value += float(clear_amount)
+                        except ValueError:
+                            pass
+        print("\n" + "=" * 50)
+        print("Scholarship Tracker Status Report")
+        print("=" * 50)
+        print(f"API Engine Status                   : ACTIVE")
+        print(f"Cloud Records                       :{total_tracked} rows synced")
+        print(f"Potential Scholarship Awards        : ${total_value:,.2f}")
+        print(f"Not Applied                         : {not_applied_count}")
+        print(f"Applied                             : {applied_count}")
+        print(f"Rejected                            : {rejected_count}")
+        print(f"Accepted                            : {accepted_count}")
+        print("=" * 50 + "\n")
 
-    total_value = 0
-    if "Amount" in df.columns:
-        for amount in df["Amount"]:
-            if amount != "Not Specified":
-                clear_amount = re.sub(r"[^\d.]", "", str(amount))
-                if clear_amount:
-                    total_value += float(clear_amount)
+    else:
+        print("\n No entries found inside the spreadsheet")
+except Exception as e:
+    print("Failed to compile Status Report")
 
-    print("\n"+ "=" * 50)
-    print("Scholarship Tracker Status Report")
-    print("="*50)
-    print(f"API Engine status               : ACTIVE")
-    print(f"Cloud Records                   : {total_tracked} rows synced")
-    print(f"Potential Scholarship Awards    : ${total_value:,.2f}")
-    print(f"Not Applied:                    : {not_applied_count}")
-    print(f"Applied:                        : {applied_count}")
-    print(f"Rejected:                       : {rejected_count}")
-    print(f"Accepted:                       : {accepted_count}")
-    print("=" * 50+ "\n")
-
-else:
-    print("No emails found or no data was retrieved.") 
+if sheet is not None:
+    format_sheet(sheet)
