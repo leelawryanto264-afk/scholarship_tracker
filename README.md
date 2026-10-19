@@ -1,6 +1,6 @@
 # Scholarship Email Parser
 
-A python script automation system that logs into the user's email via IMAP, extracts its contents into organized rows and columns, and syncs them directly into Google Sheets. Some extra featuresinclude a CLI status report detailing your total funding pools and a file that can let the user customize their own theme.
+A python script automation system that logs into the user's email via IMAP, extracts its contents into organized rows and columns, and syncs them directly into Google Sheets. Some extra features include a CLI status report detailing your total funding pools and a file that can let the user customize their own theme.
 
 ---
 
