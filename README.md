@@ -54,10 +54,8 @@ Open your terminal and type:
 
 ```bash
 Linux:
-source myenv/bin activate
+source myenv/bin/activate
 
-Windows:
-myenv/bin/activate
 ```
 
 ### 2. Install Required External Packages
@@ -66,18 +64,32 @@ myenv/bin/activate
 pip install pandas google-auth gspread python-dotenv
 ```
 
-### 3. Open main.py and replace values for your account details
+### 3. Create and Configure your .env File:
 
 ```
 EMAIL = your_email@gmail.com
-PASSWORD = xxxx xxxx xxxx xxxx
-IMAP_SERVER = imap.gmail.com
+PASSWORD = xxxxxxxxxxxxxxxx
+SHEET_URL = https://google.com
 ```
 
-### 4. Run main.py on Your Terminal:
+### 4. Generate Your Gmail Password
+
+1. Go to your Google Account Settings
+2. Make sure 2 step verification is on
+3. Click on 2 step verification and select app passwords
+4. Provide a name and click create
+5. Copy the password and paste it into PASSWORD in .env (remove any extra spaces)
+
+### 5. Setup Google Credentials
+
+Place the downloaded service account JSON file into the project's folder, its name should be:
+
+```text
+google_credentials.json
+```
+
+### 6. Run main.py on Your Terminal:
 
 ```
 python main.py
 ```
-
-### 5. Open the generated 'Scholarship Tracker' in Google Sheets
