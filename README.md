@@ -80,16 +80,29 @@ SHEET_URL = https://google.com
 4. Provide a name and click create
 5. Copy the password and paste it into PASSWORD in .env (remove any extra spaces)
 
-### 5. Setup Google Credentials
+### 5. Google Service Account & google_credentials.json Setup
 
-Place the downloaded service account JSON file into the project's folder, its name should be:
+To allow the application to securely connect and sync data with Google Sheets:
 
-```text
-google_credentials.json
+1. Go to the Google Cloud Console.
+2. Create a new project (or select an existing one).
+3. In the search bar at the top, look for **Google Sheets API** and click **Enable**. Do the exact same thing for the **Google Drive API**.
+4. Navigate to **IAM & Admin** > **Service Accounts** from the left-hand sidebar menu.
+5. Click the **Create Service Account** button at the top, give it a name (like `scholarship-tracker`), and click **Done** (you can skip the optional role settings).
+6. Find your newly created Service Account in the list and click on its email address.
+7. Switch to the **Keys** tab at the top, then click **Add Key** > **Create New Key**.
+8. Select **JSON** as the key type and click **Create**. This will automatically download a file to your computer.
+9. **Rename** that downloaded file to exactly `google_credentials.json` and place it directly into the root folder of this project (next to `main.py` or your release binary).
+10. **Crucial Step:** Open your `google_credentials.json` file, copy the unique `"client_email"` address listed inside it, open your target Google Sheet in your web browser, click **Share**, and add that client email address as an **Editor**.
+
 ```
 
 ### 6. Run main.py on Your Terminal:
 
 ```
+
 python main.py
+
+```
+
 ```
