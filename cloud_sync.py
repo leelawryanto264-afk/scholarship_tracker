@@ -4,8 +4,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 
-sheet_name = "Scholarship Tracker"
-sheet_url = "https://docs.google.com/spreadsheets/d/1IAZSTeuVZYa5wJgka9djEf2TsWVKleUGtJQ3bfrO3dI/edit?gid=0#gid=0"
+sheet_url = os.environ.get("SHEET_URL")
 credentials_file = "google_credentials.json"
 
 def connect_cloud(sheet_url=sheet_url):
@@ -24,7 +23,13 @@ def connect_cloud(sheet_url=sheet_url):
 			creds = Credentials.from_service_account_info(creds_data, scopes=scope)
 			client = gspread.authorize(creds)
 
-			wb = client.open_by_url(sheet_url)
+			if sheet_url:
+				wb = client.open_by_url(sheet_url)
+			else:
+				wb = client.create("Scholarship Tracker")
+				print(f"New spreadsheet created! Please add the following url to your configuration file")
+				print(f"URL: {wb.url}")
+
 			return wb.sheet1
 		except Exception as e:
 			print(e)
@@ -44,7 +49,3 @@ def upload_row(sheet, payload):
 		print("...")
 	except Exception as e:
 			print(e)
-
-
-
-
