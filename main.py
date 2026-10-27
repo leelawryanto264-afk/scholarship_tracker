@@ -7,13 +7,14 @@ import email.utils
 import pandas as pd
 from datetime import datetime
 from dotenv import load_dotenv
+load_dotenv()
 from format import format_sheet
 from parser import get_email, extract_details
 from cloud_sync import upload_row, sheet_url, connect_cloud
 
 
-# Loads environment and retrieve configuration settings
-load_dotenv()
+# Retrieves configuration settings
+
 EMAIL = os.getenv("EMAIL")
 PASSWORD = os.getenv("PASSWORD")
 IMAP_SERVER = os.getenv("IMAP_SERVER", "imap.gmail.com")
