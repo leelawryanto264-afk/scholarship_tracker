@@ -53,7 +53,10 @@ A python script automation system that logs into the user's email via IMAP, extr
 Open your terminal and type:
 
 ```bash
-Linux:
+# Create the Environment
+python -m venv myenv
+
+# Linux:
 source myenv/bin/activate
 
 ```
@@ -69,7 +72,7 @@ pip install pandas google-auth gspread python-dotenv
 ```
 EMAIL = your_email@gmail.com
 PASSWORD = xxxxxxxxxxxxxxxx
-SHEET_URL = https://google.com
+SHEET_URL = *leave blank*
 ```
 
 ### 4. Generate Your Gmail Password
