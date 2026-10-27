@@ -26,7 +26,11 @@ def connect_cloud(sheet_url=sheet_url):
 			if sheet_url:
 				wb = client.open_by_url(sheet_url)
 			else:
+				user_email = os.environ.get("EMAIL")
 				wb = client.create("Scholarship Tracker")
+				if user_email:
+					wb.share(user_email, perm_type="user", role="writer")
+					print(f"Shared with {user_email}!")
 				print(f"New spreadsheet created! Please add the following url to your configuration file")
 				print(f"URL: {wb.url}")
 
